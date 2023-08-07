@@ -64,7 +64,7 @@ public class Main
     	{
     		oracle_types = oracle_types + ot.toString() + "\n";
     				
-    		if (ot.toString().equals(args[0]))
+    		if (args.length > 0 && ot.toString().equals(args[0]))
     		{
     			oracle = new Oracle(ot);
     			break;
