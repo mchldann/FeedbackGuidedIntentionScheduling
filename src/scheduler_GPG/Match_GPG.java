@@ -351,12 +351,14 @@ public class Match_GPG
 			        }
                 }
 		        
-		        if (Main.oracle.uses_context)
+		        if (Main.oracle.uses_coins)
                 {
-			        for (int i = 0; i < Main.NUM_CONTEXTS; i++)
-			        {
-			        	out.print(",C" + i);
-			        }
+			        out.print(",CoinsCollected");
+                }
+		        
+		        if (Main.oracle.uses_enemies)
+                {
+			        out.print(",EnemiesDefeated");
                 }
 		        
 		        out.println(",OracleScore");
@@ -381,14 +383,17 @@ public class Match_GPG
 		        }
             }
 	        
-	        if (Main.oracle.uses_context)
+	        if (Main.oracle.uses_coins)
             {
-		        for (int i = 0; i < Main.NUM_CONTEXTS; i++)
-		        {
-		        	str.append("," + ((Main.context == i) ? 1 : 0));
-		        }
+	        	str.append("," + (Main.getCoinsRepresentation(s.coins_collected)));
             }
 	        
+	        if (Main.oracle.uses_enemies)
+            {
+	        	str.append("," + (Main.getEnemiesRepresentation(s.enemies_defeated)));
+            }
+	        
+	        // This needs to get overridden in the Python script
             str.append("," + Main.oracle.getScore(s, false));
             
 	        if (cache_results)

@@ -7,27 +7,18 @@ public class Enums {
 	
     public enum OracleType
     {
-        WEIGHTED_GOALS,
-        WEIGHTED_GOALS_NOISY,
-        
-        CONTEXTUAL_WEIGHTED_GOALS,
-        CONTEXTUAL_WEIGHTED_GOALS_NOISY,
-        
-        TIME_TAKEN,
-        TIME_TAKEN_NOISY
+    	HUMAN_FEEDBACK
     };
     
     public enum RolloutEvaluationType
     {
     	DEFAULT,
-        ORACLE,
         LEARNED
     };
     
     public enum ExperimentPhase
     {
     	BASELINE,
-        ORACLE,
         BURN_IN,
         LEARNING
     };

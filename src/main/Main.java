@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Random;
+import java.util.Scanner;
+
 import enums.Enums.AllianceType;
 import enums.Enums.ExperimentPhase;
 import enums.Enums.OracleType;
@@ -32,8 +34,6 @@ public class Main
 	
 	public static Oracle oracle;
 	
-	public static int MAX_TRAJECTORY_LENGTH;
-	
 	private static String log_dir_root;
 	
 	public static final int NUM_CONTEXTS = 3;
@@ -41,51 +41,27 @@ public class Main
 	
 	private static final int EXPERIMENT_REPETITIONS = Integer.MAX_VALUE;
 	
-	public static final boolean TAKE_BEST_ROLLOUT = false;
 	public static final boolean USE_LEGACY_MCTS = true;
 	
 	public static final boolean USE_MCTS_AS_BASELINE_SCHED = true;
 	
 	private static final boolean USE_UNCERTAINTY = false;
 	
-	private static final int NUM_BASELINE_RUNS = 250;
-	private static final int NUM_ORACLE_RUNS = 250;
+	private static final int NUM_BASELINE_RUNS = 0;
 	
 	private static final boolean KEEP_XML_FILES = false;
 
-	private static final float MIN_TIME = 50.0f;
-	private static final float MAX_TIME = 150.0f;
-    
+	private static final float MIN_TIME = 0.0f;
+	private static final float MAX_TIME = 2 * 48.0f;
+	
+	private static final float COINS_COLLECTED_DIVISOR = 1.0f;
+	private static final float ENEMIES_DEFEATED_DIVISOR = 1.0f;
+	
+	private static Scanner scan = new Scanner(System.in);
+
     public static void main(String[] args) throws Exception
     {
-    	String oracle_types = "";
-    	
-    	for (OracleType ot : OracleType.values())
-    	{
-    		oracle_types = oracle_types + ot.toString() + "\n";
-    				
-    		if (ot.toString().equals(args[0]))
-    		{
-    			oracle = new Oracle(ot);
-    			break;
-    		}
-    	}
-    	
-    	if (oracle == null)
-    	{
-    		System.out.println("Please specify an oracle type via arg[0] from the following list:");
-    		System.out.println(oracle_types);
-    		System.exit(0);
-    	}
-    	
-    	if (oracle.uses_time)
-    	{
-    		MAX_TRAJECTORY_LENGTH = Integer.MAX_VALUE;
-    	}
-    	else
-    	{
-    		MAX_TRAJECTORY_LENGTH = 100;
-    	}
+    	oracle = new Oracle(OracleType.HUMAN_FEEDBACK);
     	
 		Log.log_to_file = false;
     	Date date = Calendar.getInstance().getTime();
@@ -95,85 +71,28 @@ public class Main
 		Log.refreshLogDir(log_dir_root + "baseline/", false);
 		ArrayList<Float> baseline_results = run_baseline(NUM_BASELINE_RUNS);
 		calculateStats(baseline_results, ExperimentPhase.BASELINE);
-
-		Log.refreshLogDir(log_dir_root + "oracle/", false);
-		ArrayList<Float> oracle_results = run_oracle(NUM_ORACLE_RUNS);
-		calculateStats(oracle_results, ExperimentPhase.ORACLE);
 		
     	for (int i = 0; i < EXPERIMENT_REPETITIONS; i++)
     	{
+	    	// Human experiments
+	    	Log.refreshLogDir(log_dir_root + "learner/human_feedback", true);
+	    	
     		// Args:
     		// - num_burn_in_runs
     		// - num_learning_runs
     		// - experiments_between_training
     		// - new_pairwise_comparisons_per_train
-    		// - noise_magnitude
-    		
-    		if (!oracle.noisy)
-    		{
-    			// Very infrequent feedback
-	    		Log.refreshLogDir(log_dir_root + "learner/feedback_freq_100", true);
-	    		run_learning_experiments(100, 300, 100, 100, 0.0f);
-	    		
-	    		// Moderately infrequent feedback
-	    		Log.refreshLogDir(log_dir_root + "learner/feedback_freq_25", true);
-	    		run_learning_experiments(25, 300, 25, 25, 0.0f);
-	    		
-	    		// Frequent feedback
-	    		Log.refreshLogDir(log_dir_root + "learner/feedback_freq_5", true);
-	    		run_learning_experiments(5, 300, 5, 5, 0.0f);
-    		}
-    		else
-    		{
-    			int feedback_interval = 5;
-    			
-	    		// Small noise
-	    		Log.refreshLogDir(log_dir_root + "learner/noise_0_25", true);
-	    		run_learning_experiments(feedback_interval, 300, feedback_interval, feedback_interval, 0.25f);
-	    		
-	    		// Moderate noise
-	    		Log.refreshLogDir(log_dir_root + "learner/noise_0_5", true);
-	    		run_learning_experiments(feedback_interval, 300, feedback_interval, feedback_interval, 0.5f);
-	    		
-	    		// Large noise
-	    		Log.refreshLogDir(log_dir_root + "learner/noise_1_0", true);
-	    		run_learning_experiments(feedback_interval, 300, feedback_interval, feedback_interval, 1.0f);
-	    		
-	    		// Very large noise
-	    		Log.refreshLogDir(log_dir_root + "learner/noise_2_0", true);
-	    		run_learning_experiments(feedback_interval, 300, feedback_interval, feedback_interval, 2.0f);
-    		}
+	    	// - noise_magnitude
+	    	run_learning_experiments(10, 300, 10, 10, 0.0f);
+
     	}
+    	
+    	scan.close();
     }
-    
-	private static int generatePlot() throws IOException, InterruptedException
-	{
-    	Log.info("Generating plot...");
-
-    	String cmd = PYTHON_EXECUTABLE + " " + System.getProperty("user.dir") + "/python/graph.py -i " + log_dir_root;
-    	
-    	if (oracle.noisy)
-    	{
-    		cmd = cmd + " -n";
-    	}
-    	
-		String python_log = Log.getLogDir() + "/python_log.txt";
-		FileWriter fw = new FileWriter(python_log, true);
-        BufferedWriter bw = new BufferedWriter(fw);
-        PrintWriter out = new PrintWriter(bw);
-        out.println(cmd);
-        out.close();
-
-        // TODO: Ought to check if the python script succeeded!
-    	Process p = Runtime.getRuntime().exec(cmd);
-    	return p.waitFor();
-	}
     
 	private static int doTraining(boolean first_train, int num_burn_in_runs, int new_training_samples,
 		boolean use_uncertainty, float noise_magnitude) throws IOException, InterruptedException
 	{
-    	Log.info("Training...");
-    	
     	String input_file = Log.getLogDir() + "/match_results_for_python.csv";
     	String cmd = PYTHON_EXECUTABLE + " " + System.getProperty("user.dir") + "/python/train.py -n " + new_training_samples
     		+ " -v " + 0
@@ -197,10 +116,33 @@ public class Main
         PrintWriter out = new PrintWriter(bw);
         out.println(cmd);
         out.close();
-
-     // TODO: Ought to check if the python script succeeded!
-    	Process p = Runtime.getRuntime().exec(cmd);
-    	return p.waitFor();
+        
+    	Log.info("Run this training command:\n" + cmd);
+    	Log.info("Then press ENTER to continue . . .\n");
+        scan.nextLine();
+        
+        return 0;
+	}
+	
+	private static int summariseResults() throws IOException
+	{
+    	String input_file = Log.getLogDir() + "/match_results_for_python.csv";
+    	String cmd = PYTHON_EXECUTABLE + " " + System.getProperty("user.dir") + "/python/summarise.py " + input_file;
+		
+		String python_log = Log.getLogDir() + "/python_log.txt";
+		FileWriter fw = new FileWriter(python_log, true);
+        BufferedWriter bw = new BufferedWriter(fw);
+        PrintWriter out = new PrintWriter(bw);
+        out.println(cmd);
+        out.close();
+        
+    	Log.info("Run this command to summarise the results:\n" + cmd);
+    	Log.info("Then press ENTER to continue . . .\n");
+        scan.nextLine();
+        
+        scan.close();
+        System.exit(0);
+		return 0;
 	}
 	
     private static void calculateStats(ArrayList<Float> raw_results, ExperimentPhase ep)
@@ -247,7 +189,7 @@ public class Main
 		}
     }
     
-	public static float getCompletionTimeRepresentation(int completionTimeRaw)
+	public static float getCompletionTimeRepresentation(float completionTimeRaw)
 	{
     	float complete_time_rep = completionTimeRaw;
     	
@@ -259,6 +201,18 @@ public class Main
     	complete_time_rep = Math.max(0.0f, Math.min(1.0f, complete_time_rep));
 
 		return complete_time_rep;
+	}
+	
+	public static float getCoinsRepresentation(int coinsCollectedRaw)
+	{
+    	float coins_collected_rep = coinsCollectedRaw / COINS_COLLECTED_DIVISOR;
+		return coins_collected_rep;
+	}
+	
+	public static float getEnemiesRepresentation(int enemiesDefeatedRaw)
+	{
+    	float enemies_defeated_rep = enemiesDefeatedRaw / ENEMIES_DEFEATED_DIVISOR;
+		return enemies_defeated_rep;
 	}
     
 	public static ArrayList<Float> run_baseline(int num_baseline_runs) throws Exception
@@ -301,20 +255,20 @@ public class Main
 		gpg_scheduler_names.add("Baseline_scheduler");
 		if (USE_MCTS_AS_BASELINE_SCHED)
 		{
-			gpg_schedulers.add(new MCTS_Scheduler_GPG(VisionType.FULL, mcts_alpha, mcts_beta, mcts_c, 1.0, null, RolloutEvaluationType.DEFAULT, USE_LEGACY_MCTS, true, TAKE_BEST_ROLLOUT));
+			gpg_schedulers.add(new MCTS_Scheduler_GPG(VisionType.FULL, mcts_alpha, mcts_beta, mcts_c, 1.0, null, RolloutEvaluationType.DEFAULT, USE_LEGACY_MCTS, true));
 		}
 
-		gpg_scheduler_names.add("MCTS_with_oracle");
-		gpg_schedulers.add(new MCTS_Scheduler_GPG(VisionType.FULL, mcts_alpha, mcts_beta, mcts_c, 1.0, null, RolloutEvaluationType.ORACLE, USE_LEGACY_MCTS, true, TAKE_BEST_ROLLOUT));
-		
+		gpg_scheduler_names.add("UNUSED");
+		gpg_schedulers.add(null);
+
 		gpg_scheduler_names.add("MCTS_learned_eval");
-		gpg_schedulers.add(new MCTS_Scheduler_GPG(VisionType.FULL, mcts_alpha, mcts_beta, mcts_c, 1.0, null, RolloutEvaluationType.LEARNED, USE_LEGACY_MCTS, true, TAKE_BEST_ROLLOUT));
+		gpg_schedulers.add(new MCTS_Scheduler_GPG(VisionType.FULL, mcts_alpha, mcts_beta, mcts_c, 1.0, null, RolloutEvaluationType.LEARNED, USE_LEGACY_MCTS, true));
 
 		// GPT generator settings
     	int depth = 3;
     	int numEnvironmentVariables = 30;
     	int numVarToUseAsPostCond = 15;
-    	int numGoalPlanTrees = 10;
+    	int numGoalPlanTrees = 4;
     	int subgoalsPerPlan = 1;
     	int plansPerGoal = 2;
     	int actionsPerPlan = 3;
@@ -329,10 +283,6 @@ public class Main
         	if (experiment_num < num_baseline_runs)
         	{
         		experiment_phase = ExperimentPhase.BASELINE;
-        	}
-        	else if (experiment_num < (num_baseline_runs + num_oracle_runs))
-        	{
-        		experiment_phase = ExperimentPhase.ORACLE;
         	}
         	else if (experiment_num < (num_baseline_runs + num_oracle_runs + num_burn_in_runs))
         	{
@@ -350,9 +300,15 @@ public class Main
         		
         		if (runs_since_learning_commenced % experiments_between_training == 0)
         		{
-            		doTraining(first_train, num_burn_in_runs, new_pairwise_comparisons_per_train, USE_UNCERTAINTY, noise_magnitude);
-            		generatePlot();
-            		first_train = false;
+        			if (experiment_num == 30)
+        			{
+        				summariseResults();
+        			}
+        			else
+        			{
+                		doTraining(first_train, num_burn_in_runs, new_pairwise_comparisons_per_train, USE_UNCERTAINTY, noise_magnitude);
+                		first_train = false;
+        			}
         		}
         	}
         	
@@ -420,9 +376,6 @@ public class Main
 		    	case BURN_IN:
 		    		agent_1 = 0;
 		    		break;
-		    	case ORACLE:
-		    		agent_1 = 1;
-		    		break;
 		    	case LEARNING:
 		    		agent_1 = 2;
 		    		break;
@@ -447,10 +400,6 @@ public class Main
 	            	new String[] {gpg_scheduler_names.get(agent_1)}).run(true, true, false);
 	        
         	if (experiment_phase == ExperimentPhase.BASELINE)
-        	{
-        		result.add(oracle.getScore(mi.final_state, false));
-        	}
-        	else if (experiment_phase == ExperimentPhase.ORACLE)
         	{
         		result.add(oracle.getScore(mi.final_state, false));
         	}

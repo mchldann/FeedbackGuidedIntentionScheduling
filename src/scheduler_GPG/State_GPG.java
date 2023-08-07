@@ -49,16 +49,18 @@ public class State_GPG {
     
     public boolean game_over;
     public boolean pass_repetitions_exceeded;
-    public int age;
+    public float age;
     public ArrayList<TreeNode> actionHistory;
-    public int[] intention_completion_times;
+    public float[] intention_completion_times;
+    public int coins_collected;
+    public int enemies_defeated;
     
     // Made private since this constructor is only meant to be called by clone()
     private State_GPG(String forest_name, BeliefBase beliefs, ArrayList<TreeNode> intentions,
     	HashMap<String, TreeNode> nodeLib, HashMap<String, String> preqMap, HashMap<String, String> parentMap, int playerTurn,
-    	int consecutive_passes, boolean game_over, boolean pass_repetitions_exceeded, int age, ArrayList<TreeNode> actionHistory,
-    	int[] intention_completion_times, HashSet<String> nodesVisited, HashSet<String> goalsCompleted, HashSet<TreeNode> candidateActions,
-    	HashSet<String> blockedPlans, TreeNode lastActionApplied)
+    	int consecutive_passes, boolean game_over, boolean pass_repetitions_exceeded, float age, ArrayList<TreeNode> actionHistory,
+    	float[] intention_completion_times, int coins_collected, int enemies_defeated, HashSet<String> nodesVisited, HashSet<String> goalsCompleted,
+    	HashSet<TreeNode> candidateActions, HashSet<String> blockedPlans, TreeNode lastActionApplied)
     {
     	this.forest_name = forest_name;
         this.beliefs = beliefs;
@@ -77,7 +79,7 @@ public class State_GPG {
         
         if (intention_completion_times == null)
         {
-        	this.intention_completion_times = new int[intentions.size()];
+        	this.intention_completion_times = new float[intentions.size()];
         	for (int i = 0; i < this.intention_completion_times.length; i++)
         	{
         		this.intention_completion_times[i] = -1;
@@ -87,6 +89,9 @@ public class State_GPG {
         {
         	this.intention_completion_times = intention_completion_times;
         }
+        
+        this.coins_collected = coins_collected;
+        this.enemies_defeated = enemies_defeated;
         
         this.nodesVisited = new HashSet<String>(nodesVisited);
         this.goalsCompleted = new HashSet<String>(goalsCompleted);
@@ -100,7 +105,7 @@ public class State_GPG {
     // For creating new states at the start of a match
     public State_GPG(String forest_name, BeliefBase beliefs, ArrayList<TreeNode> intentions, HashMap<String, TreeNode> nodeLib, HashMap<String, String> preqMap, HashMap<String, String> parentMap, int playerTurn)
     {
-    	this(forest_name, beliefs, intentions, nodeLib, preqMap, parentMap, playerTurn, 0, false, false, 0, new ArrayList<TreeNode>(), null, new HashSet<String>(), new HashSet<String>(), new HashSet<TreeNode>(), new HashSet<String>(), null);
+    	this(forest_name, beliefs, intentions, nodeLib, preqMap, parentMap, playerTurn, 0, false, false, 0, new ArrayList<TreeNode>(), null, 0, 0, new HashSet<String>(), new HashSet<String>(), new HashSet<TreeNode>(), new HashSet<String>(), null);
     
         for (TreeNode intention : intentions)
         {
@@ -115,6 +120,74 @@ public class State_GPG {
     	linearisations = new HashMap<String, Linearisation>();
     }
     
+    private static int coins_collected(int tree_idx, int action_idx)
+    {
+    	if (action_idx > 20 && action_idx < 25)
+    	{
+    		return (action_idx - 19) * 2 + 1;
+    	}
+    	else if (action_idx % 5 == 0)
+    	{
+    		return 1;
+    	}
+    	else
+    	{
+    		return 0;
+    	}
+    }
+    
+    private static int enemies_defeated(int tree_idx, int action_idx)
+    {
+    	if (tree_idx == 0)
+    	{
+        	if (action_idx > 15 && action_idx < 18)
+        	{
+        		return 1;
+        	}
+        	else
+        	{
+        		return 0;
+        	}
+    	}
+    	else if (tree_idx == 1)
+    	{
+        	if (action_idx > 20 && action_idx < 25)
+        	{
+        		return 1;
+        	}
+        	else
+        	{
+        		return 0;
+        	}
+    	}
+    	else if (tree_idx == 2)
+    	{
+        	if (action_idx % 5 == 0)
+        	{
+        		return 1;
+        	}
+        	else
+        	{
+        		return 0;
+        	}
+    	}
+    	else if (tree_idx == 3)
+    	{
+        	if (action_idx > 10 && action_idx % 3 == 0)
+        	{
+        		return 1;
+        	}
+        	else
+        	{
+        		return 0;
+        	}
+    	}
+    	else
+    	{
+    		return 0;
+    	}
+    }
+    
     public void applyActionList(ArrayList<TreeNode> action_list)
     {
     	for (TreeNode a : action_list)
@@ -125,6 +198,13 @@ public class State_GPG {
     		}
     		else
     		{
+        		String[] type_split = a.getType().split("-");
+        		int tree_idx = Integer.parseInt(type_split[0].substring(1));
+        		int action_idx = Integer.parseInt(type_split[1].substring(1));
+        		
+        		this.coins_collected += coins_collected(tree_idx, action_idx);
+        		this.enemies_defeated += enemies_defeated(tree_idx, action_idx);
+        		
     			applyAction(a);
     		}
     	}
@@ -139,8 +219,8 @@ public class State_GPG {
     
     private void incrementAge()
     {
-    	age++;
-    	if (age >= Main.MAX_TRAJECTORY_LENGTH)
+        age++;
+    	if (age >= Main.oracle.max_trajectory_length)
     	{
         	game_over = true;
     	}
@@ -684,7 +764,7 @@ public class State_GPG {
     {
         return new State_GPG(forest_name, beliefs.clone(), new ArrayList<TreeNode>(intentions),
         	nodeLib, preqMap, parentMap, playerTurn, consecutive_passes, game_over, pass_repetitions_exceeded, age, new ArrayList<TreeNode>(actionHistory),
-        	intention_completion_times.clone(), new HashSet<String>(nodesVisited), new HashSet<String>(goalsCompleted),
+        	intention_completion_times.clone(), coins_collected, enemies_defeated, new HashSet<String>(nodesVisited), new HashSet<String>(goalsCompleted),
         	new HashSet<TreeNode>(candidateActions), new HashSet<String>(blockedPlans), lastActionApplied);
     }
 }

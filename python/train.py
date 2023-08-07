@@ -13,6 +13,7 @@ import sys
 import csv
 from random import randrange
 from model import PreferenceLearner
+from tabulate import tabulate
 
 NUM_HIDDEN = 20
 
@@ -75,7 +76,7 @@ with open(parsed_args.match_results) as csv_file:
             # TODO: Fix this hardcoded 5
             nn_input_size = len(row) - 5
             if parsed_args.debug:
-                print('Number of intentions = ' + str(nn_input_size))
+                print('Neural net input size = ' + str(nn_input_size))
             match_results_train = np.zeros([num_match_results, nn_input_size], dtype = float)
             oracle_scores = np.zeros([num_match_results], dtype = float)
             oracle_scores_noisy = np.zeros([num_match_results], dtype = float)
@@ -202,8 +203,36 @@ while i < total_num_samples * oversample_mul:
         
     np.copyto(all_data[i][0], match_results_train[idx_a])
     np.copyto(all_data[i][1], match_results_train[idx_b])
-    all_targets[i][0] = get_preference(oracle_scores_noisy[idx_a], oracle_scores_noisy[idx_b])
-    all_targets_true[i][0] = get_preference(oracle_scores[idx_a], oracle_scores[idx_b])
+    
+    print()
+    print(tabulate([['A', bool(match_results_train[idx_a][0]), int(100 * match_results_train[idx_a][4]) if bool(match_results_train[idx_a][0]) else 'N/A', bool(match_results_train[idx_a][1]), bool(match_results_train[idx_a][2]), bool(match_results_train[idx_a][3]), match_results_train[idx_a][8], match_results_train[idx_a][9]],
+        ['B', bool(match_results_train[idx_b][0]), int(100 * match_results_train[idx_b][4]) if bool(match_results_train[idx_b][0]) else 'N/A', bool(match_results_train[idx_b][1]), bool(match_results_train[idx_b][2]), bool(match_results_train[idx_b][3]), match_results_train[idx_b][8], match_results_train[idx_b][9]]],
+        headers=['Traj', 'Finish lvl?', 'Finish time (s)', 'Mushroom?', 'Yoshi?', 'Secret?', 'Coins', 'Enemies defeated']))
+    print()
+    
+    valid_response = False
+    user_score = -1
+    while not valid_response:
+    
+        valid_response = True
+        txt = input("Which trajectory do you prefer, 'A' or 'B'? (Type 'E' if you like both equally.) ")
+        
+        if txt.upper() == "A":
+            user_score = 1
+        elif txt.upper() == "B":
+            user_score = 0
+        elif txt.upper() == "E":
+            user_score = 0.5
+        else:
+            valid_response = False
+            print("\nUnrecognised option! Please enter a valid response ('A', 'B' or 'E').\n")
+    
+    #all_targets[i][0] = get_preference(oracle_scores_noisy[idx_a], oracle_scores_noisy[idx_b])
+    #all_targets_true[i][0] = get_preference(oracle_scores[idx_a], oracle_scores[idx_b])
+    
+    all_targets[i][0] = user_score
+    all_targets_true[i][0] = user_score
+    
     i += 1
 
 if parsed_args.uncertainty:
@@ -424,3 +453,4 @@ if False:
     print('test value for reco BEST', pref_learner_best.forward(test_vals, use_dropout=False))
     print('test value for reco ALT', pref_learner_old.forward(test_vals, use_dropout=False))
 
+print("Training complete!")

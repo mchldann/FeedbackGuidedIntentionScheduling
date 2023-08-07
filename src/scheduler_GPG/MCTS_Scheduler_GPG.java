@@ -10,8 +10,6 @@ import main.Main;
 import enums.Enums.RolloutEvaluationType;
 import enums.Enums.VisionType;
 import goalplantree.ActionNode;
-import goalplantree.GoalNode;
-import goalplantree.PlanNode;
 import goalplantree.TreeNode;
 import nn.FeedForwardNetwork;
 import util.Log;
@@ -30,7 +28,6 @@ public class MCTS_Scheduler_GPG extends Scheduler_GPG {
 	public boolean[] gpt_visible;
 	private boolean legacy;
 	private boolean build_tree;
-	private boolean take_best_rollout;
 	private double best_rollout_return;
 	private State_GPG best_rollout_end_state;
 	private FeedForwardNetwork ffn;
@@ -45,7 +42,7 @@ public class MCTS_Scheduler_GPG extends Scheduler_GPG {
     public int nRollouts;
     
     public MCTS_Scheduler_GPG(VisionType vision_type, int alpha, int beta, double c, double rollout_stochasticity,
-    	double[][] payoff_matrix, RolloutEvaluationType rollout_eval_type, boolean legacy, boolean build_tree, boolean take_best_rollout)
+    	double[][] payoff_matrix, RolloutEvaluationType rollout_eval_type, boolean legacy, boolean build_tree)
     {
     	this.vision_type = vision_type;
     	this.alpha = alpha;
@@ -56,7 +53,6 @@ public class MCTS_Scheduler_GPG extends Scheduler_GPG {
     	this.rollout_eval_type = rollout_eval_type;
     	this.legacy = legacy;
     	this.build_tree = build_tree;
-    	this.take_best_rollout = take_best_rollout;
     	this.best_rollout_return = Double.NEGATIVE_INFINITY;
     	this.best_rollout_end_state = null;
     }
@@ -302,34 +298,6 @@ public class MCTS_Scheduler_GPG extends Scheduler_GPG {
 	    }
  
         Log.info("\nBest rollout return from all sims so far: " + best_rollout_return);
- 
-        if (take_best_rollout)
-        {
-	        actionChoices = new ArrayList<TreeNode>();
-	        ArrayList<TreeNode> full_hist = best_rollout_end_state.actionHistory;
-	        
-	        for (int i = state.age; i < full_hist.size(); i++)
-	        {
-	        	TreeNode tmp_decision = full_hist.get(i);
-	        	if (tmp_decision == null)
-	        	{
-	        		// Pass, do nothing
-	        	}
-	        	else if (tmp_decision instanceof GoalNode)
-	        	{
-	        		// Do nothing
-	        	}
-	        	else if (tmp_decision instanceof PlanNode)
-	        	{
-	        		actionChoices.add(tmp_decision);
-	        	}
-	        	else if (tmp_decision instanceof ActionNode)
-	        	{
-	        		actionChoices.add(tmp_decision);
-	        		break;
-	        	}
-	        }
-        }
         
         Decision_GPG result = new Decision_GPG(actionChoices, (rootNode.children.size() == 1) && (rootNode.children.get(0).actionChoice == null));
         System.gc();
@@ -515,9 +483,9 @@ public class MCTS_Scheduler_GPG extends Scheduler_GPG {
 		    	        }
 	    	        	break;
 	    	        	
-	    	        case ORACLE:
-	    	        	agent_scores[0] = Main.oracle.getScore(endOfGame, true);
-	    	        	break;
+	    	        //case ORACLE:
+	    	        //	agent_scores[0] = Main.oracle.getScore(endOfGame, true);
+	    	        //	break;
 	    	        	
 	    	        case LEARNED:
 	    	        	
@@ -531,9 +499,14 @@ public class MCTS_Scheduler_GPG extends Scheduler_GPG {
 	    		        	nn_input_size += endOfGame.intentions.size();
 	                    }
 	    		        
-	    		        if (Main.oracle.uses_context)
+	    		        if (Main.oracle.uses_coins)
 	                    {
-	    		        	nn_input_size += Main.NUM_CONTEXTS;
+	    		        	nn_input_size += 1;
+	                    }
+	    		        
+	    		        if (Main.oracle.uses_enemies)
+	                    {
+	    		        	nn_input_size += 1;
 	                    }
 	    		        
 	                    float[] nn_input = new float[nn_input_size];
@@ -551,12 +524,15 @@ public class MCTS_Scheduler_GPG extends Scheduler_GPG {
 	                        }
 	        	        }
 	                    
-	    		        if (Main.oracle.uses_context)
+	    		        if (Main.oracle.uses_coins)
 	                    {
-	    			        for (int c = 0; c < Main.NUM_CONTEXTS; c++)
-	    			        {
-	    			        	nn_input[nn_input_size - Main.NUM_CONTEXTS + c] = ((Main.context == c) ? 1.0f : 0.0f);
-	    			        }
+	    		        	int offset = Main.oracle.uses_enemies ? 2 : 1;
+	    			        nn_input[nn_input_size - offset] = Main.getCoinsRepresentation(endOfGame.coins_collected);
+	                    }
+	    		        
+	    		        if (Main.oracle.uses_enemies)
+	                    {
+	    			        nn_input[nn_input_size - 1] = Main.getEnemiesRepresentation(endOfGame.enemies_defeated);
 	                    }
 	                    ////////////////////////////////
 	    		        
